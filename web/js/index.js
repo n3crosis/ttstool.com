@@ -171,12 +171,15 @@ function RemoteTTS(host) {
     }
     return create(ssmlParts)
       .then(function(result) {
-        return new Promise(function(fulfill) {
+        return new Promise(async function(fulfill) {
           audio.pause();
           audio.src = host + "/ttstool/getParts?q=" + result.join(",");
           audio.onplay = fulfill;
           audio.onerror =
           audio.onended = onEnd;
+          if(window.sinkId){
+            await audio.setSinkId(window.sinkId);
+          }
           audio.play();
         })
       })

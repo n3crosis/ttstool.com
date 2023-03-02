@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+  <title>TTS Tool to SINK</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Create voice narrations using text-to-speech (TTS) technology; export MP3 audio track and use in your YouTube videos; powered by Amazon Polly.">
+  <meta property="og:title" content="TTS Tool">
+  <meta property="og:description" content="Create voice narrations using text-to-speech (TTS) technology; export MP3 audio track and use in your YouTube videos; powered by Amazon Polly.">
+
+  <!-- favicon -->
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <link rel="stylesheet" href="css/common.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  
+  <script src="js/databind.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/index.js"></script>
+
+</head>
+<body bind-var-voices="null" bind-event-keyup="if (event.ctrlKey && event.key == ' ') { this.playAll(); return false }">
+  <div class="page">
+    <div class="hyper-controls" bind-statement-1="$(thisElem).toggle(#voices != null)">
+      <div bind-statement-1="$(thisElem).toggle(!#globalProgress)">
+        <i class="material-icons button" bind-event-click="this.playAll()" title="Shortcut: Ctrl-Space">play_circle_filled</i>
+        <i class="material-icons button" bind-event-click="this.playAll(true)">file_download</i>
+      </div>
+      <div bind-statement-1="$(thisElem).toggle(!!#globalProgress)">
+        <div class="spinner"></div>
+      </div>
+    </div>
+    <h1>Text-to-Speech Tool</h1>
+    <p style="color: #666; padding-left: 1em; max-width: 60%; margin-bottom: 2em;" bind-repeater-if="#voices ? 0 : 1">
+      <u>Note</u>: this free tool has a 3000 character limit.
+      It is not designed for synthesizing documents or large amounts of text.
+      Please use the Amazon Polly or Google Wavenet tools for that purpose.
+    </p>
+    <table bind-var-provider="'Amazon'" bind-statement-1="$(thisElem).toggle(#voices == null)">
+      <tr>
+        <td>Select voice provider:&nbsp;&nbsp;</td>
+        <td>
+          <select bind-event-change="#provider = thisElem.value">
+            <option value="Amazon">Amazon</option>
+            <option value="Microsoft">Microsoft</option>
+          </select>
+        </td>
+      </tr>
+      <tr bind-var-languages="this.getLanguages(#allVoices.filter(function(x) {return x.provider == #provider}))">
+        <td>Select language:</td>
+        <td>
+          <select bind-event-change="#voices = #allVoices.filter(function(voice) {return voice.provider == #provider && voice.langName.slice(-thisElem.value.length) == thisElem.value})">
+            <option value=""></option>
+            <option bind-repeater-i="#languages.length" bind-statement-1="thisElem.value = #languages[#i]">{{#languages[#i]}}</option>
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <td>Select Output:</td>
+        <td>
+          <select id="devicesDropdown" disabled>
+            <option value="">Default</option>
+          </select>
+        </td>
+      </tr>
+      <button id="getAudioOutputsButton" onclick="getAudioOutputs()">Get audio outputs</button>
+      <button id="changeOutputButton" onclick="changeOutput()">Change ouput</button>
+
+
+    </table>
+  <table class="rows" bind-statement-1="$(thisElem).toggle(#voices != null)">
+    <tr bind-repeater-i="#rows.length" bind-var-row="#rows[#i]">
+      <td>
+        <div class="viewer" bind-statement-1="$(thisElem).toggle(#i != #editIndex)">
+          <div class="controls">
+            <i class="material-icons button" bind-event-click="#editIndex = #i">create</i>
+            <i class="material-icons button" bind-event-click="#rows.splice(#i,0,{}); #editIndex=#i;">add</i>
+            <i class="material-icons button" bind-event-click="#rows.splice(#i,1); if (#editIndex>#i) #editIndex--;">clear</i>
+          </div>
+          <div>
+            <span class="pause label" bind-statement-1="$(thisElem).toggle(#row.pause != null)">pause: {{#row.pause.value}}s</span>
+            <span class="voice label" bind-statement-1="$(thisElem).toggle(#row.voice != null)">voice: {{#row.voice.name}}</span>
+            <span class="volume label" bind-statement-1="$(thisElem).toggle(#row.volume != null)">volume: {{#row.volume.desc}}</span>
+            <span class="rate label" bind-statement-1="$(thisElem).toggle(#row.rate != null)">rate: {{#row.rate.desc}}</span>
+            <span class="pitch label" bind-statement-1="$(thisElem).toggle(#row.pitch != null)">pitch: {{#row.pitch.desc}}</span>
+            <span bind-statement-1="thisElem.innerHTML = escapeXml(#row.text || '').replace(/\n/g, '&lt;br/&gt;')"></span>
+          </div>
+          <div style="clear: both;"></div>
+        </div>
+        <div class="editor" bind-statement-1="$(thisElem).toggle(#i == #editIndex)">
+          <div class="controls">
+            <i class="material-icons button" bind-event-click="#editIndex = null">check</i>
+          </div>
+          <div>
+            <input type="number" placeholder="Pause" min="0" max="10" style="width: 4em"
+              bind-event-change="#row.pause = thisElem.value ? {value:thisElem.value} : null"
+              bind-statement-1="thisElem.value = #row.pause ? #row.pause.value : ''" />
+            <select bind-event-change="#row.voice = #voices[thisElem.value]" bind-statement-1="thisElem.value = #row.voice ? #voices.indexOf(#row.voice) : ''">
+              <option value="">voice</option>
+              <option bind-repeater-i="#voices.length" bind-statement-1="thisElem.value = #i">{{#voices[#i].desc}}</option>
+            </select>
+            <select bind-event-change="#row.volume = #volumes[thisElem.value]" bind-statement-1="thisElem.value = #row.volume ? #volumes.indexOf(#row.volume) : ''">
+              <option value="">volume</option>
+              <option bind-repeater-i="#volumes.length" bind-statement-1="thisElem.value = #i">{{#volumes[#i].desc}}</option>
+            </select>
+            <select bind-event-change="#row.rate = #rates[thisElem.value]" bind-statement-1="thisElem.value = #row.rate ? #rates.indexOf(#row.rate) : ''">
+              <option value="">rate</option>
+              <option bind-repeater-i="#rates.length" bind-statement-1="thisElem.value = #i">{{#rates[#i].desc}}</option>
+            </select>
+            <select bind-event-change="#row.pitch = #pitches[thisElem.value]" bind-statement-1="thisElem.value = #row.pitch ? #pitches.indexOf(#row.pitch) : ''">
+              <option value="">pitch</option>
+              <option bind-repeater-i="#pitches.length" bind-statement-1="thisElem.value = #i">{{#pitches[#i].desc}}</option>
+            </select>
+          </div>
+          <div class="text" bind-var-char-count="0">
+            <textarea rows="4" placeholder="Enter text to be spoken."
+              bind-event-change="#row.text = thisElem.value"
+              bind-event-input="#charCount = thisElem.value.length"
+              bind-statement-1="thisElem.value = #row.text || ''"></textarea>
+            <div class="char-count">{{#charCount}} characters</div>
+          </div>
+        </div>
+      </td>
+    </tr>
+    <tr class="add" bind-statement-1="$(thisElem).toggle(#editIndex == null)">
+      <td>
+        <div class="viewer">
+          <div class="controls">
+            <i class="material-icons button" bind-event-click="#rows.push({}); #editIndex=#rows.length-1;">add</i>
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+  </div>
+  <div class="dangling-footer">
+    <div class="feedback-tab">
+      <a href="soundboard.html">Soundboard Tool</a>
+      &nbsp;|&nbsp;
+      <a href="polly.html">Amazon Polly TTS</a>
+      &nbsp;|&nbsp;
+      <a href="wavenet.html">Google Wavenet TTS</a>
+      &nbsp;|&nbsp;
+      <a href="https://www.lsdsoftware.com/contact.html?subject=TTS%20Tool">Feedback</a>
+    </div>
+    <div style="clear: both;"></div>
+  </div>
+  <div class="alert alert-danger global-error-alert"
+    bind-statement-1="if (#globalError) $(thisElem).stop().show(0).delay(5000).hide(0); else $(thisElem).stop().hide(0)"
+    bind-event-click="$(thisElem).stop().hide(0)">Error: {{#globalError.message}}</div>
+    <script src="js/sink.js"></script>
+</body>
+</html>
